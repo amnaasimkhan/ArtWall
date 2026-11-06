@@ -1,0 +1,11 @@
+.ribbon {
+  position: static;
+  width: 100%;
+  background-color: #a26769;
+  height: 40px;
+  display: flex;
+  justify-content: space-around;
+  align-items: center;
+  z-index: 1; // lower than AppBar
+  margin-bottom: 67px;
+}

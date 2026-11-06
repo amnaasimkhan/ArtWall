@@ -1,0 +1,158 @@
+<!doctype html><html><head><meta charset="utf-8"><style>
+body{margin:0;background:#fff;font-family:Inter,Segoe UI,Helvetica,Arial,sans-serif}
+text{font-family:inherit}
+.t{font-size:15px;font-weight:600;fill:#1f2937}.s{font-size:12px;fill:#4b5563}.xs{font-size:11px;fill:#6b7280}
+.lbl{font-size:13px;font-weight:700}
+</style></head><body>
+<svg width="1600" height="1010" viewBox="0 0 1600 1010" xmlns="http://www.w3.org/2000/svg">
+<defs>
+<marker id="a" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M0,0L10,5L0,10z" fill="#374151"/></marker>
+<marker id="ab" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M0,0L10,5L0,10z" fill="#7c3aed"/></marker>
+<marker id="ag" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M0,0L10,5L0,10z" fill="#059669"/></marker>
+</defs>
+<text x="30" y="40" style="font-size:24px;font-weight:700;fill:#111827">ArtWall: three-tier deployment on AWS</text>
+<text x="30" y="64" class="s">Region us-east-1 · Terraform-managed · CI/CD with GitHub Actions → Amazon ECR → EC2 Auto Scaling Group (SSM Run Command)</text>
+
+<!-- Users -->
+<rect x="30" y="420" width="120" height="70" rx="10" fill="#f3f4f6" stroke="#9ca3af"/>
+<text x="90" y="450" text-anchor="middle" class="t">Users</text><text x="90" y="470" text-anchor="middle" class="s">web browser</text>
+
+<!-- Dev / GitHub -->
+<rect x="30" y="110" width="250" height="230" rx="12" fill="#f5f3ff" stroke="#7c3aed"/>
+<text x="45" y="135" class="lbl" fill="#6d28d9">CI/CD · GitHub</text>
+<rect x="50" y="150" width="210" height="40" rx="8" fill="#fff" stroke="#a78bfa"/><text x="155" y="175" text-anchor="middle" class="s">git push → main</text>
+<rect x="50" y="205" width="210" height="120" rx="8" fill="#fff" stroke="#a78bfa"/>
+<text x="155" y="226" text-anchor="middle" class="t">GitHub Actions</text>
+<text x="65" y="248" class="s">1. test (npm test, vite build)</text>
+<text x="65" y="268" class="s">2. build web + app images</text>
+<text x="65" y="288" class="s">3. push :sha + :latest to ECR</text>
+<text x="65" y="308" class="s">4. deploy via SSM → smoke test</text>
+<line x1="155" y1="190" x2="155" y2="203" stroke="#7c3aed" stroke-width="2" marker-end="url(#ab)"/>
+
+<!-- AWS cloud -->
+<rect x="320" y="90" width="1250" height="895" rx="14" fill="none" stroke="#f59e0b" stroke-width="2" stroke-dasharray="8 5"/>
+<text x="340" y="116" class="lbl" fill="#b45309">AWS Cloud · us-east-1</text>
+
+<!-- Regional services -->
+<rect x="1290" y="130" width="260" height="830" rx="12" fill="#fffbeb" stroke="#fcd34d"/>
+<text x="1305" y="155" class="lbl" fill="#92400e">Regional managed services</text>
+<g>
+<rect x="1310" y="175" width="220" height="80" rx="8" fill="#fff" stroke="#f59e0b"/><text x="1420" y="200" text-anchor="middle" class="t">Amazon ECR</text><text x="1420" y="220" text-anchor="middle" class="s">artwall-web · artwall-app</text><text x="1420" y="238" text-anchor="middle" class="xs">scan on push · keep last 10</text>
+<rect x="1310" y="275" width="220" height="95" rx="8" fill="#fff" stroke="#f59e0b"/><text x="1420" y="300" text-anchor="middle" class="t">SSM Parameter Store</text><text x="1420" y="320" text-anchor="middle" class="s">/artwall/* config</text><text x="1420" y="338" text-anchor="middle" class="s">DB_PASSWORD, JWT, Stripe</text><text x="1420" y="356" text-anchor="middle" class="xs">SecureString (KMS aws/ssm)</text>
+<rect x="1310" y="390" width="220" height="80" rx="8" fill="#fff" stroke="#f59e0b"/><text x="1420" y="415" text-anchor="middle" class="t">SSM Run Command</text><text x="1420" y="435" text-anchor="middle" class="s">+ Session Manager</text><text x="1420" y="453" text-anchor="middle" class="xs">no SSH, no bastion</text>
+<rect x="1310" y="490" width="220" height="95" rx="8" fill="#fff" stroke="#f59e0b"/><text x="1420" y="515" text-anchor="middle" class="t">Amazon CloudWatch</text><text x="1420" y="535" text-anchor="middle" class="s">Logs: /artwall/web, /app</text><text x="1420" y="553" text-anchor="middle" class="s">Dashboard · Alarms</text><text x="1420" y="571" text-anchor="middle" class="xs">ASG target-tracking metric</text>
+<rect x="1310" y="605" width="220" height="95" rx="8" fill="#fff" stroke="#f59e0b"/><text x="1420" y="630" text-anchor="middle" class="t">AWS IAM</text><text x="1420" y="650" text-anchor="middle" class="s">GitHub OIDC role (CI)</text><text x="1420" y="668" text-anchor="middle" class="s">EC2 instance role</text><text x="1420" y="686" text-anchor="middle" class="xs">least privilege, no stored keys</text>
+</g>
+
+<!-- VPC -->
+<rect x="350" y="135" width="915" height="830" rx="12" fill="#f0fdf4" stroke="#16a34a" stroke-width="2"/>
+<text x="368" y="160" class="lbl" fill="#15803d">VPC 10.0.0.0/16</text>
+
+<!-- IGW -->
+<rect x="250" y="425" width="0" height="0"/>
+<rect x="330" y="430" width="70" height="50" rx="8" fill="#fff" stroke="#16a34a"/><text x="365" y="452" text-anchor="middle" class="s" style="font-weight:700">IGW</text><text x="365" y="468" text-anchor="middle" class="xs">internet</text>
+
+<!-- AZ columns -->
+<rect x="430" y="175" width="400" height="770" rx="10" fill="none" stroke="#60a5fa" stroke-dasharray="6 4"/>
+<text x="445" y="197" class="lbl" fill="#2563eb">Availability Zone A</text>
+<rect x="850" y="175" width="400" height="770" rx="10" fill="none" stroke="#60a5fa" stroke-dasharray="6 4"/>
+<text x="865" y="197" class="lbl" fill="#2563eb">Availability Zone B</text>
+
+<!-- Public subnets -->
+<rect x="445" y="210" width="370" height="220" rx="8" fill="#dcfce7" stroke="#22c55e"/>
+<text x="460" y="232" class="t">Public subnet 10.0.1.0/24</text><text x="460" y="250" class="xs">route 0.0.0.0/0 → IGW</text>
+<rect x="865" y="210" width="370" height="220" rx="8" fill="#dcfce7" stroke="#22c55e"/>
+<text x="880" y="232" class="t">Public subnet 10.0.2.0/24</text><text x="880" y="250" class="xs">route 0.0.0.0/0 → IGW</text>
+
+<!-- ALB spanning -->
+<rect x="560" y="300" width="560" height="70" rx="10" fill="#fff" stroke="#ea580c" stroke-width="2"/>
+<text x="840" y="326" text-anchor="middle" class="t">Application Load Balancer (HTTP :80)</text>
+<text x="840" y="346" text-anchor="middle" class="s">listener → target group web-tg · health check GET /healthz</text>
+<text x="840" y="362" text-anchor="middle" class="xs" fill="#c2410c">SG alb-sg: in 80 from 0.0.0.0/0 · out 80 to host-sg</text>
+
+<!-- NAT -->
+<rect x="460" y="265" width="85" height="30" rx="6" fill="#fff" stroke="#16a34a"/><text x="502" y="285" text-anchor="middle" class="xs" style="font-weight:700;fill:#166534">NAT instance</text>
+
+<!-- Private app subnets -->
+<rect x="445" y="450" width="370" height="270" rx="8" fill="#dbeafe" stroke="#3b82f6"/>
+<text x="460" y="472" class="t">Private app subnet 10.0.11.0/24</text><text x="460" y="490" class="xs">route 0.0.0.0/0 → NAT (outbound only)</text>
+<rect x="865" y="450" width="370" height="270" rx="8" fill="#dbeafe" stroke="#3b82f6"/>
+<text x="880" y="472" class="t">Private app subnet 10.0.12.0/24</text><text x="880" y="490" class="xs">route 0.0.0.0/0 → NAT (outbound only)</text>
+
+<!-- ASG box -->
+<rect x="460" y="505" width="760" height="200" rx="10" fill="none" stroke="#ea580c" stroke-dasharray="7 4"/>
+<text x="840" y="700" text-anchor="middle" class="xs" fill="#c2410c">Auto Scaling Group (min 1 · desired 2 · max 4) · target tracking: avg CPU 50% · SG host-sg: in 80 from alb-sg only</text>
+
+<!-- EC2 hosts -->
+<g>
+<rect x="480" y="515" width="320" height="160" rx="8" fill="#fff" stroke="#2563eb"/>
+<text x="495" y="537" class="t">EC2 t3.micro · Docker</text>
+<rect x="495" y="550" width="135" height="70" rx="6" fill="#ecfeff" stroke="#0891b2"/><text x="562" y="573" text-anchor="middle" class="t" style="font-size:13px">Web tier</text><text x="562" y="590" text-anchor="middle" class="xs">Nginx + React</text><text x="562" y="606" text-anchor="middle" class="xs">:80→8080</text>
+<rect x="650" y="550" width="135" height="70" rx="6" fill="#fef3c7" stroke="#d97706"/><text x="717" y="573" text-anchor="middle" class="t" style="font-size:13px">App tier</text><text x="717" y="590" text-anchor="middle" class="xs">Node / Express</text><text x="717" y="606" text-anchor="middle" class="xs">:8800 (internal)</text>
+<line x1="630" y1="585" x2="648" y2="585" stroke="#374151" stroke-width="1.5" marker-end="url(#a)"/>
+<text x="495" y="645" class="xs">/api/* proxied web → app on private Docker network</text>
+<text x="495" y="662" class="xs">IMDSv2 · hop limit 1 · encrypted EBS</text>
+</g>
+<g>
+<rect x="900" y="515" width="320" height="160" rx="8" fill="#fff" stroke="#2563eb"/>
+<text x="915" y="537" class="t">EC2 t3.micro · Docker</text>
+<rect x="915" y="550" width="135" height="70" rx="6" fill="#ecfeff" stroke="#0891b2"/><text x="982" y="573" text-anchor="middle" class="t" style="font-size:13px">Web tier</text><text x="982" y="590" text-anchor="middle" class="xs">Nginx + React</text><text x="982" y="606" text-anchor="middle" class="xs">:80→8080</text>
+<rect x="1070" y="550" width="135" height="70" rx="6" fill="#fef3c7" stroke="#d97706"/><text x="1137" y="573" text-anchor="middle" class="t" style="font-size:13px">App tier</text><text x="1137" y="590" text-anchor="middle" class="xs">Node / Express</text><text x="1137" y="606" text-anchor="middle" class="xs">:8800 (internal)</text>
+<line x1="1050" y1="585" x2="1068" y2="585" stroke="#374151" stroke-width="1.5" marker-end="url(#a)"/>
+<text x="915" y="645" class="xs">same images, same release tag</text>
+<text x="915" y="662" class="xs">replaced automatically if unhealthy</text>
+</g>
+
+<!-- DB subnets -->
+<rect x="445" y="740" width="370" height="190" rx="8" fill="#fce7f3" stroke="#db2777"/>
+<text x="460" y="762" class="t">Private DB subnet 10.0.21.0/24</text><text x="460" y="780" class="xs">local route only: no internet in or out</text>
+<rect x="865" y="740" width="370" height="190" rx="8" fill="#fce7f3" stroke="#db2777"/>
+<text x="880" y="762" class="t">Private DB subnet 10.0.22.0/24</text><text x="880" y="780" class="xs">local route only: no internet in or out</text>
+<rect x="490" y="800" width="290" height="105" rx="8" fill="#fff" stroke="#be185d" stroke-width="2"/>
+<text x="635" y="825" text-anchor="middle" class="t">Amazon RDS for MySQL 8.4</text>
+<text x="635" y="845" text-anchor="middle" class="s">db.t3.micro · 20 GB encrypted</text>
+<text x="635" y="863" text-anchor="middle" class="xs">TLS required · not publicly accessible</text>
+<text x="635" y="881" text-anchor="middle" class="xs" fill="#be185d">SG db-sg: in 3306 from host-sg only</text>
+<rect x="910" y="800" width="290" height="105" rx="8" fill="#fff" stroke="#be185d" stroke-dasharray="6 4"/>
+<text x="1055" y="835" text-anchor="middle" class="t" style="fill:#9d174d">Multi-AZ standby</text>
+<text x="1055" y="855" text-anchor="middle" class="s">optional (db_multi_az = true)</text>
+<text x="1055" y="873" text-anchor="middle" class="xs">off by default to save cost</text>
+<line x1="780" y1="852" x2="908" y2="852" stroke="#be185d" stroke-dasharray="5 4" stroke-width="1.5"/>
+<text x="845" y="845" text-anchor="middle" class="xs" fill="#be185d">sync</text>
+
+<!-- Flows -->
+<path d="M150,455 L328,455" stroke="#374151" stroke-width="2" fill="none" marker-end="url(#a)"/>
+<text x="240" y="447" text-anchor="middle" class="xs">HTTP</text>
+<path d="M400,455 L420,455 L420,335 L558,335" stroke="#374151" stroke-width="2" fill="none" marker-end="url(#a)"/>
+<path d="M700,370 L700,513" stroke="#374151" stroke-width="2" fill="none" marker-end="url(#a)"/>
+<path d="M980,370 L980,513" stroke="#374151" stroke-width="2" fill="none" marker-end="url(#a)"/>
+<text x="708" y="440" class="xs">:80</text><text x="988" y="440" class="xs">:80</text>
+<path d="M717,620 L717,798" stroke="#be185d" stroke-width="2" fill="none" marker-end="url(#a)"/>
+<path d="M1137,620 L1137,700 L1137,720 L760,780 L760,798" stroke="#be185d" stroke-width="2" fill="none" marker-end="url(#a)"/>
+<text x="725" y="735" class="xs" fill="#be185d">MySQL/TLS :3306</text>
+<!-- outbound via NAT -->
+<path d="M520,515 L520,297" stroke="#16a34a" stroke-width="1.5" stroke-dasharray="4 3" fill="none" marker-end="url(#ag)"/>
+<text x="527" y="410" class="xs" fill="#15803d">outbound 443</text>
+<!-- CI flows -->
+<path d="M260,250 C 700,40 1200,60 1308,210" stroke="#7c3aed" stroke-width="2" fill="none" marker-end="url(#ab)"/>
+<text x="760" y="85" class="xs" fill="#6d28d9">push images (OIDC role)</text>
+<path d="M260,300 C 700,110 1150,180 1308,420" stroke="#7c3aed" stroke-width="2" stroke-dasharray="6 4" fill="none" marker-end="url(#ab)"/>
+<text x="840" y="128" class="xs" fill="#6d28d9">send-command deploy.sh · put IMAGE_TAG</text>
+<path d="M1308,440 L1225,560" stroke="#7c3aed" stroke-width="1.5" stroke-dasharray="6 4" fill="none" marker-end="url(#ab)"/>
+<path d="M1308,220 L1222,520" stroke="#059669" stroke-width="1.5" fill="none" marker-end="url(#ag)"/>
+<path d="M1308,330 L1222,530" stroke="#059669" stroke-width="1.5" fill="none" marker-end="url(#ag)"/>
+
+<!-- legend -->
+<g transform="translate(30,560)">
+<rect width="270" height="228" rx="10" fill="#fff" stroke="#d1d5db"/>
+<text x="15" y="25" class="t">Legend</text>
+<line x1="15" y1="48" x2="55" y2="48" stroke="#374151" stroke-width="2" marker-end="url(#a)"/><text x="65" y="52" class="s">user request path</text>
+<line x1="15" y1="73" x2="55" y2="73" stroke="#be185d" stroke-width="2" marker-end="url(#a)"/><text x="65" y="77" class="s">database traffic</text>
+<line x1="15" y1="98" x2="55" y2="98" stroke="#7c3aed" stroke-width="2" marker-end="url(#ab)"/><text x="65" y="102" class="s">CI/CD (build &amp; deploy)</text>
+<line x1="15" y1="123" x2="55" y2="123" stroke="#059669" stroke-width="2" marker-end="url(#ag)"/><text x="65" y="127" class="s">image pull / secrets fetch</text>
+<rect x="15" y="140" width="40" height="16" fill="#dcfce7" stroke="#22c55e"/><text x="65" y="153" class="s">public subnet</text>
+<rect x="15" y="163" width="40" height="16" fill="#dbeafe" stroke="#3b82f6"/><text x="65" y="176" class="s">private app subnet</text>
+<rect x="15" y="186" width="40" height="16" fill="#fce7f3" stroke="#db2777"/><text x="65" y="199" class="s">private DB subnet</text>
+<text x="15" y="220" class="xs">Dashed orange = security boundary / group</text>
+</g>
+</svg></body></html>

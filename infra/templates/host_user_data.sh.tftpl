@@ -1,0 +1,30 @@
+#!/bin/bash
+# Boot script for every container host launched by the Auto Scaling Group.
+set -euxo pipefail
+
+retry() { for i in $(seq 1 30); do "$@" && return 0; sleep 10; done; return 1; }
+
+# Docker + Compose plugin (outbound internet goes through the NAT, which may still be starting)
+retry dnf install -y docker
+systemctl enable --now docker
+mkdir -p /usr/local/lib/docker/cli-plugins
+retry curl -fsSL -o /usr/local/lib/docker/cli-plugins/docker-compose \
+  https://github.com/docker/compose/releases/download/v2.29.7/docker-compose-linux-x86_64
+chmod +x /usr/local/lib/docker/cli-plugins/docker-compose
+
+# Non-secret configuration (secrets are fetched from SSM by deploy.sh)
+mkdir -p /opt/artwall
+cat > /opt/artwall/config.env <<CFG
+AWS_REGION=${aws_region}
+ECR_REGISTRY=${ecr_registry}
+WEB_IMAGE=${web_image}
+APP_IMAGE=${app_image}
+PARAM_PATH=${param_path}
+LOG_PREFIX=${log_prefix}
+CFG
+
+echo '${deploy_sh_b64}' | base64 -d > /opt/artwall/deploy.sh
+echo '${compose_b64}' | base64 -d > /opt/artwall/docker-compose.yml
+chmod 700 /opt/artwall/deploy.sh
+
+/opt/artwall/deploy.sh

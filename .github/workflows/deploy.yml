@@ -1,0 +1,166 @@
+# CI/CD for ArtWall
+#   pull request -> test only
+#   push to main -> test -> build & push images to Amazon ECR -> deploy to every EC2 host -> smoke test
+#
+# Repository settings needed (Settings > Secrets and variables > Actions):
+#   Variables: AWS_REGION (e.g. us-east-1), APP_URL (terraform output app_url)
+#   Secret:    AWS_ROLE_ARN (terraform output github_actions_role_arn)      <- normal AWS account
+#      or:     AWS_ACCESS_KEY_ID, AWS_SECRET_ACCESS_KEY, AWS_SESSION_TOKEN  <- AWS Academy Learner Lab
+name: CI/CD
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  id-token: write   # lets the workflow request an OIDC token to assume the AWS role (no stored keys)
+
+concurrency:
+  group: deploy-${{ github.ref }}
+  cancel-in-progress: false
+
+env:
+  AWS_REGION: ${{ vars.AWS_REGION || 'us-east-1' }}
+  PROJECT: artwall
+
+jobs:
+  test:
+    name: Test
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: |
+            backend/package-lock.json
+            frontend/package-lock.json
+
+      - name: Backend - install & unit tests
+        working-directory: backend
+        run: |
+          npm ci
+          npm test
+
+      - name: Frontend - install & production build
+        working-directory: frontend
+        run: |
+          npm ci
+          npm run build
+
+      - name: Validate docker-compose files
+        run: |
+          printf 'DB_USER=ci\nDB_PASSWORD=ci\nDB_NAME=artwall\n' > .env
+          docker compose config -q
+          touch deploy/.env
+          WEB_IMAGE=x APP_IMAGE=y AWS_REGION=$AWS_REGION LOG_PREFIX=/x INSTANCE_ID=i \
+            docker compose -f deploy/docker-compose.prod.yml config -q
+
+  build-and-push:
+    name: Build & push images
+    needs: test
+    if: github.event_name != 'pull_request'
+    runs-on: ubuntu-latest
+    outputs:
+      image_tag: ${{ steps.meta.outputs.tag }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - id: meta
+        run: echo "tag=${GITHUB_SHA::12}" >> "$GITHUB_OUTPUT"
+
+      - name: Configure AWS credentials
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          aws-region: ${{ env.AWS_REGION }}
+          role-to-assume: ${{ secrets.AWS_ROLE_ARN }}
+          aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
+          aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+          aws-session-token: ${{ secrets.AWS_SESSION_TOKEN }}
+
+      - name: Log in to Amazon ECR
+        id: ecr
+        uses: aws-actions/amazon-ecr-login@v2
+
+      - uses: docker/setup-buildx-action@v3
+
+      - name: Build & push web tier image
+        uses: docker/build-push-action@v6
+        with:
+          context: ./frontend
+          push: true
+          tags: |
+            ${{ steps.ecr.outputs.registry }}/${{ env.PROJECT }}-web:${{ steps.meta.outputs.tag }}
+            ${{ steps.ecr.outputs.registry }}/${{ env.PROJECT }}-web:latest
+          cache-from: type=gha,scope=web
+          cache-to: type=gha,mode=max,scope=web
+
+      - name: Build & push application tier image
+        uses: docker/build-push-action@v6
+        with:
+          context: ./backend
+          push: true
+          tags: |
+            ${{ steps.ecr.outputs.registry }}/${{ env.PROJECT }}-app:${{ steps.meta.outputs.tag }}
+            ${{ steps.ecr.outputs.registry }}/${{ env.PROJECT }}-app:latest
+          cache-from: type=gha,scope=app
+          cache-to: type=gha,mode=max,scope=app
+
+  deploy:
+    name: Deploy to EC2 (Auto Scaling Group)
+    needs: build-and-push
+    runs-on: ubuntu-latest
+    environment: production
+    steps:
+      - name: Configure AWS credentials
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          aws-region: ${{ env.AWS_REGION }}
+          role-to-assume: ${{ secrets.AWS_ROLE_ARN }}
+          aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
+          aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+          aws-session-token: ${{ secrets.AWS_SESSION_TOKEN }}
+
+      - name: Record release tag (new instances started by auto scaling use it too)
+        run: |
+          aws ssm put-parameter --name "/$PROJECT/IMAGE_TAG" --type String \
+            --value "${{ needs.build-and-push.outputs.image_tag }}" --overwrite
+
+      - name: Run deploy.sh on every app host via SSM Run Command
+        run: |
+          CMD_ID=$(aws ssm send-command \
+            --document-name AWS-RunShellScript \
+            --targets "Key=tag:Role,Values=app-host" "Key=tag:Project,Values=$PROJECT" \
+            --parameters 'commands=["PULL_RETRIES=5 /opt/artwall/deploy.sh"]' \
+            --comment "Deploy ${{ needs.build-and-push.outputs.image_tag }}" \
+            --timeout-seconds 600 \
+            --query Command.CommandId --output text)
+          echo "SSM command: $CMD_ID"
+          for i in $(seq 1 60); do
+            sleep 10
+            STATUSES=$(aws ssm list-command-invocations --command-id "$CMD_ID" --query 'CommandInvocations[].Status' --output text)
+            echo "Status: ${STATUSES:-pending}"
+            if [ -n "$STATUSES" ] && ! echo "$STATUSES" | grep -qE 'Pending|InProgress|Delayed'; then break; fi
+          done
+          aws ssm list-command-invocations --command-id "$CMD_ID" --details \
+            --query 'CommandInvocations[].[InstanceId,Status,CommandPlugins[0].Output]' --output text
+          if [ -z "$STATUSES" ] || echo "$STATUSES" | grep -qvE '^(Success[[:space:]]*)+$'; then
+            echo "::error::Deployment did not succeed on every instance"; exit 1
+          fi
+
+      - name: Smoke test through the load balancer
+        if: vars.APP_URL != ''
+        run: |
+          for i in $(seq 1 20); do
+            if curl -fsS "${{ vars.APP_URL }}/healthz" && curl -fsS "${{ vars.APP_URL }}/api/health/db"; then
+              echo; echo "Application is up at ${{ vars.APP_URL }}"; exit 0
+            fi
+            sleep 15
+          done
+          echo "::error::Smoke test failed"; exit 1

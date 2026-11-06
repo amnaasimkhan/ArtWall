@@ -1,0 +1,38 @@
+# Production compose file used on every EC2 host in the Auto Scaling Group.
+# Placed at /opt/artwall/docker-compose.yml by user data and run by deploy.sh, which exports
+# WEB_IMAGE, APP_IMAGE, IMAGE_TAG, AWS_REGION, LOG_PREFIX and INSTANCE_ID.
+# Secrets arrive in /opt/artwall/.env (root-only, written from SSM Parameter Store).
+# The database is Amazon RDS, so there is no db service here.
+services:
+  web:
+    image: ${WEB_IMAGE}:${IMAGE_TAG:-latest}
+    ports:
+      - "80:8080"              # the only published port; the ALB targets it
+    depends_on:
+      app:
+        condition: service_healthy
+    networks: [internal]
+    restart: always
+    logging:
+      driver: awslogs
+      options:
+        awslogs-region: ${AWS_REGION}
+        awslogs-group: ${LOG_PREFIX}/web
+        awslogs-stream: ${INSTANCE_ID}-web
+
+  app:
+    image: ${APP_IMAGE}:${IMAGE_TAG:-latest}
+    env_file: .env
+    expose:
+      - "8800"                 # internal only: reachable from the web container, not the host or VPC
+    networks: [internal]
+    restart: always
+    logging:
+      driver: awslogs
+      options:
+        awslogs-region: ${AWS_REGION}
+        awslogs-group: ${LOG_PREFIX}/app
+        awslogs-stream: ${INSTANCE_ID}-app
+
+networks:
+  internal:

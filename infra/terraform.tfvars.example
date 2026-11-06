@@ -1,0 +1,20 @@
+# Copy to terraform.tfvars (git-ignored) and edit.
+github_repo = "your-github-username/ArtWall"   # exactly as GitHub shows it (case matters)
+
+# Region: us-east-1 (default, required for AWS Academy Learner Lab) or ap-south-1 (Mumbai, closest to Pakistan)
+# aws_region = "ap-south-1"
+
+# Set false if this AWS account ALREADY has the GitHub OIDC provider
+# (e.g. another project such as CraftKart was deployed in the same account)
+# create_github_oidc_provider = false
+
+# AWS Academy Learner Lab? set true (uses LabRole/LabInstanceProfile, no OIDC)
+lab_mode = false
+
+# Optional: real Stripe test key (or set it later in Parameter Store)
+# stripe_secret_key = "sk_test_..."
+
+# Cost knobs
+# nat_mode     = "instance"   # or "gateway" (+~$30/month)
+# asg_desired  = 2            # 1 halves EC2 cost while developing
+# db_multi_az  = false

@@ -1,0 +1,56 @@
+# Local development / testing: all three tiers on one machine.
+#   cp backend/sample.env .env   (fill in values)   then:   docker compose up --build
+# Open http://localhost:8080
+# Create tables + admin once:  docker compose exec app npm run db:init  &&  docker compose exec app npm run db:admin
+services:
+  web:
+    build: ./frontend
+    image: artwall-web:local
+    ports:
+      - "8082:8080"            # only the web tier is published
+    depends_on:
+      app:
+        condition: service_healthy
+    networks: [frontend]
+    restart: unless-stopped
+
+  app:
+    build: ./backend
+    image: artwall-app:local
+    env_file: .env
+    environment:
+      DB_HOST: db
+      DB_PORT: "3306"
+      FRONTEND_URL: http://localhost:8082
+      CORS_ORIGIN: http://localhost:8082      
+
+    expose:
+      - "8800"                 # reachable only on the internal networks, not from the host
+    depends_on:
+      db:
+        condition: service_healthy
+    networks: [frontend, backend]
+    restart: unless-stopped
+
+  db:                          # local stand-in for Amazon RDS (MySQL 8.4)
+    image: mysql:8.4
+    environment:
+      MYSQL_DATABASE: ${DB_NAME:-artwall}
+      MYSQL_USER: ${DB_USER}
+      MYSQL_PASSWORD: ${DB_PASSWORD}
+      MYSQL_RANDOM_ROOT_PASSWORD: "yes"
+    volumes:
+      - db-data:/var/lib/mysql
+    healthcheck:
+      test: ["CMD", "mysqladmin", "ping", "-h", "127.0.0.1"]
+      interval: 5s
+      retries: 20
+    networks: [backend]        # web tier cannot reach the database at all
+
+networks:
+  frontend:
+  backend:
+    internal: true
+
+volumes:
+  db-data:
